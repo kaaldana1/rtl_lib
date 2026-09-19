@@ -1,0 +1,38 @@
+# macOS / editors
+.DS_Store
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# Quartus build outputs (Windows side)
+db/
+incremental_db/
+output_files/
+simulation/
+greybox_tmp/
+hc_output/
+qdb/
+tmp-clearbox/
+*.qws
+*.rpt
+*.summary
+*.smsg
+*.done
+*.jdi
+*.pin
+*.sof
+*.pof
+*.sld
+*.qarlog
+*.bak
+c5_pin_model_dump.txt
+PLLJ_PLLSPE_INFO.txt
+
+# Simulation outputs
+obj_dir/
+work/
+transcript
+*.vcd
+*.fst
+*.wlf
+*.vvp

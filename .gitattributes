@@ -1,0 +1,6 @@
+# Normalize line endings: LF in the repo, regardless of Mac/Windows checkout
+* text=auto eol=lf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+*.qpf text eol=crlf
+*.qsf text eol=crlf

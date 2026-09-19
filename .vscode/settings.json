@@ -1,0 +1,25 @@
+{
+  "files.associations": {
+    "*.sv": "systemverilog",
+    "*.svh": "systemverilog",
+    "*.v": "verilog",
+    "*.qip": "tcl",
+    "*.sdc": "tcl"
+  },
+  "files.eol": "\n",
+  "files.insertFinalNewline": true,
+  "files.trimTrailingWhitespace": true,
+
+  "[systemverilog]": { "editor.tabSize": 2, "editor.insertSpaces": true },
+  "[verilog]":       { "editor.tabSize": 2, "editor.insertSpaces": true },
+
+  // eirikpre.systemverilog: workspace-wide symbol index (go-to-definition, module instantiation)
+  "systemverilog.includeIndexing": ["rtl_lib/**/*.{sv,svh}", "tb/**/*.{sv,svh}"],
+  "systemverilog.disableIndexing": false,
+
+  // mshr-h.veriloghdl: linting + language server (requires the tools on PATH, see README)
+  "verilog.linting.linter": "verilator",
+  "verilog.linting.verilator.arguments": "-Wall -Irtl_lib/pkg rtl_lib/pkg/rtl_utils_pkg.sv",
+  "verilog.languageServer.veribleVerilogLs.enabled": true,
+  "verilog.formatting.systemVerilog.formatter": "verible-verilog-format"
+}

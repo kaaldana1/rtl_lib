@@ -1,0 +1,23 @@
+// Compile order: package first
++incdir+rtl_lib/pkg
+rtl_lib/pkg/rtl_utils_pkg.sv
+rtl_lib/cdc/async_fifo.sv
+rtl_lib/cdc/pulse_sync.sv
+rtl_lib/cdc/synchronizer.sv
+rtl_lib/combinational/comparator.sv
+rtl_lib/combinational/decoder.sv
+rtl_lib/combinational/mux.sv
+rtl_lib/combinational/priority_encoder.sv
+rtl_lib/control/round_robin_arbiter.sv
+rtl_lib/control/timer.sv
+rtl_lib/control/watchdog.sv
+rtl_lib/interfaces/ready_valid.sv
+rtl_lib/interfaces/spi.sv
+rtl_lib/interfaces/uart.sv
+rtl_lib/memory/ram_1r1w.sv
+rtl_lib/memory/register_file.sv
+rtl_lib/memory/sync_fifo.sv
+rtl_lib/sequential/counter.sv
+rtl_lib/sequential/edge_detector.sv
+rtl_lib/sequential/pulse_stretcher.sv
+rtl_lib/sequential/shift_register.sv

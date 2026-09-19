@@ -1,0 +1,2 @@
+# Verible lint rule overrides (one per line: +rule / -rule / rule=param)
+-explicit-parameter-storage-type
