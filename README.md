@@ -36,7 +36,16 @@ When adding a new module, add it to both `rtl_lib.f` and `rtl_lib.qip`.
 2. Install the command-line tools the extensions drive:
    ```sh
    brew install verilator icarus-verilog
-   brew tap chipsalliance/verible && brew install verible   # verible-verilog-ls / -lint / -format
+   ```
+   Verible (`verible-verilog-ls` / `-lint` / `-format`): the `chipsalliance/verible` Homebrew tap is broken on
+   current Homebrew, so use the prebuilt release binary instead:
+   ```sh
+   gh release download -R chipsalliance/verible -p '*-macOS.tar.gz'
+   tar xzf verible-*-macOS.tar.gz
+   mkdir -p ~/.local/opt ~/.local/bin
+   mv verible-*-macOS ~/.local/opt/verible
+   xattr -dr com.apple.quarantine ~/.local/opt/verible
+   ln -sf ~/.local/opt/verible/bin/* ~/.local/bin/   # ~/.local/bin must be on PATH
    ```
 3. Reload VS Code. `.vscode/settings.json` already enables Verilator linting and the Verible language server.
 
