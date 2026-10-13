@@ -200,7 +200,7 @@ module mealy_machine_sequence_detector(
 endmodule
 
 
-module parameterized_FIFO #(parameter WIDTH=8, DEPTH=8) (
+module FIFO #(parameter int WIDTH=8, parameter int DEPTH=8) (
   input clk,
   input rst,
   input wire in,
@@ -269,7 +269,7 @@ module parameterized_FIFO #(parameter WIDTH=8, DEPTH=8) (
 endmodule
 
 
-module parameterized_parallel_in_serial_out #(parameter WIDTH = 8) (
+module parallel_in_serial_out #(parameter int WIDTH = 8) (
   input wire clk,
   input wire rst,
   input wire load,
@@ -310,7 +310,7 @@ module parameterized_parallel_in_serial_out #(parameter WIDTH = 8) (
 endmodule
 
 
-module parameterized_serial_in_parallel_out #(parameter WIDTH = 8) (
+module serial_in_parallel_out #(parameter int WIDTH = 8) (
   input wire clk,
   input wire rst,
   input wire sample,
@@ -365,7 +365,7 @@ module parameterized_serial_in_parallel_out #(parameter WIDTH = 8) (
 
 endmodule
 
-module parameterized_bit_reversal #(parameter BITS = 4)(
+module bit_reversal #(parameter int BITS = 4)(
   input wire [BITS-1:0] bitfield,
   output logic [BITS-1:0] reversed_bitfield
 );
@@ -373,12 +373,12 @@ module parameterized_bit_reversal #(parameter BITS = 4)(
     if (BITS <= 1)
       $fatal(1, "BITS must be >= 1");
   end
-  for (genvar i = 0; i < BITS; i++) begin : reverse_bits
+  for (genvar i = 0; i < BITS; i++) begin : g_reverse_bits
     assign reversed_bitfield[i] = bitfield[BITS - 1 - i];
   end
 endmodule
 
-module parameterized_priority_encoder #(parameter N = 4) (
+module priority_encoder #(parameter int N = 4) (
   input wire [N-1:0] decoded,
   output logic [$clog2(N)-1:0] encoded,
   output logic valid
@@ -395,7 +395,7 @@ module parameterized_priority_encoder #(parameter N = 4) (
   end
 endmodule
 
-module parameterized_round_robin_arbiter #(parameter N = 4) (
+module round_robin_arbiter #(parameter int N = 4) (
   input wire clk,
   input wire rst,
   input wire [N-1:0] request,
@@ -427,8 +427,8 @@ module parameterized_round_robin_arbiter #(parameter N = 4) (
     // But that's okay because found_behind would be a don't care (since there would be a valid found_ahead)
   // If there is neither found ahead nor found behind, then valid[1] = 0
   assign area_behind = request;
-  parameterized_priority_encoder #(.N(N)) pe_ahead (.decoded(area_ahead), .encoded(found_ahead), .valid(valid[0]));
-  parameterized_priority_encoder #(.N(N)) pe_behind (.decoded(area_behind), .encoded(found_behind), .valid(valid[1]));
+  priority_encoder #(.N(N)) pe_ahead (.decoded(area_ahead), .encoded(found_ahead), .valid(valid[0]));
+  priority_encoder #(.N(N)) pe_behind (.decoded(area_behind), .encoded(found_behind), .valid(valid[1]));
 
   always_comb begin
     grant = (N)'(0);
@@ -440,7 +440,7 @@ module parameterized_round_robin_arbiter #(parameter N = 4) (
     // accept can be pending when grant is already determined. in this case, wait for accept to go high before
     // attempting to seek the next grant, or else we might lose the current grant when accept is currently pending at 0
     if (accept && grant != 0) begin
-      priority_search_here = (grant_index == 0) ? N - 1 : grant_index - 1;
+      priority_search_here = (grant_index == 0) ? ($clog2(N))'(N - 1) : grant_index - 1;
     end
   end
 
@@ -454,3 +454,314 @@ module parameterized_round_robin_arbiter #(parameter N = 4) (
   end
 
 endmodule
+
+module practice_operators #(parameter int WIDTH = 8, parameter int NEW_WIDTH = 16,
+                            parameter int W = 8, parameter int V = 16) (
+    input wire signed [WIDTH-1:0] a,
+    input wire [W-1:0] x,
+    input wire [V-1:0] y,
+    output logic signed [NEW_WIDTH-1:0] out_1,
+    output logic signed [(W*3)-1:0] out_2,
+    output wire out_3
+);
+    logic [W-1:0] all_ones;
+    logic [2*W-1:0] pad;
+    always_comb begin
+      // Drill 1: Write a module that takes input wire signed [7:0] a
+      // and produces output wire signed [15:0] y equal to a sign-extended,
+      // using concatenation and replication explicitly (don’t just write y = a).
+      // Then answer: if a were declared unsigned, would assign y = a;
+      // still zero-extend or sign-extend, and why?
+        // My answer: It would zero-extend
+      out_1 = {{(NEW_WIDTH - WIDTH){a[WIDTH-1]}}, a};
+
+      // Drill 2: Write a module with parameter W = 8 that outputs all_ones
+      // (W bits, all 1s) and pad (2*W bits, with the input x in the lower
+      // half and zeros above), using only replication and concatenation.
+      all_ones = {W{1'b1}};
+      pad = {{W{1'b0}}, W'(x)};
+      out_2 = {all_ones, pad};
+  end
+
+      // Drill 3: Write a one-line assign that outputs 1 only when a
+      // 16-bit input is all zeros, using a reduction operator rather than == 0.
+      assign out_3 = ~|y;
+endmodule
+
+
+module ReLU #(parameter int WIDTH = 16) (
+    input wire signed [WIDTH-1:0] x,
+    output wire signed [WIDTH-1:0] y
+);
+    initial begin
+      if (WIDTH < 1)
+        $fatal(1, "WIDTH must be at least 1");
+    end
+    // i believe checking the MSB directly is cheaper than a signed comparison
+    // This would just be a mux, with x[WIDTH-1] as the selector
+    assign y = (x[WIDTH-1]) ? '0 : x;
+endmodule
+
+// output width =  width + [log2(Input count)],
+// since each W-bit signed number requires an output width of at
+// least W + 1 bits to prevent overflow
+module signed_adder_tree #(parameter int WIDTH = 8, parameter int INPUT_COUNT = 4) (
+  input wire signed [WIDTH-1:0] in [INPUT_COUNT-1:0],
+  output wire signed [(WIDTH + $clog2(INPUT_COUNT)-1):0] out
+);
+  localparam int STAGES = $clog2(INPUT_COUNT);
+  localparam int MAX_NODES = 1 << STAGES;
+
+  // array of wires
+  // Each node gets the final max width insitead of declaring each level progressively wider
+  // STAGES + 1 stages,
+    // each containing MAX_NODES values,
+    //   where each value is WIDTH + STAGES bits wide
+  wire signed [(WIDTH+STAGES-1):0] tree_stage [STAGES:0][MAX_NODES-1:0];
+
+    for (genvar i = 0; i < MAX_NODES; i++) begin : g_input_stage
+      if (i < INPUT_COUNT) begin
+        assign tree_stage[0][i] = in[i]; // sign extend data to node width
+      end
+      else begin
+        // handles any non power of two input counts by zeroing out the extra nodes,
+        // which will be added to the sum
+        assign tree_stage[0][i] = '0;
+      end
+    end
+
+  // inner loop accounts for number of additions at each stage
+  // Since each stage pairs its inputs, it produces half as many outputs.
+  // each inner iteration creates on sum
+  for (genvar stage = 0; stage < STAGES; stage++) begin : g_adder_tree
+    for (genvar node = 0; node < MAX_NODES >> (stage + 1); node++) begin : g_adder_nodes
+      assign tree_stage[stage + 1][node] = tree_stage[stage][node * 2] + tree_stage[stage][node * 2 + 1];
+    end
+  end
+
+  assign out = tree_stage[STAGES][0];
+endmodule
+
+
+module MAC_array #(parameter int WIDTH = 8,
+                   parameter int OUTPUT_PARALLEL_LANES = 4,
+                   parameter int REDUCTION_PARALLEL_LANES = 4,
+                   parameter int INPUT_COUNT = 784,
+                   parameter int FINAL_CYCLE = (INPUT_COUNT + REDUCTION_PARALLEL_LANES - 1) / REDUCTION_PARALLEL_LANES
+                   )
+(
+  input wire clk,
+  input wire rst,
+  // x_input can be shared or otherwise, it should be decided by the caller. Caller provides inputs per cycle
+  input wire signed [WIDTH-1:0] one_cycle_operand_1 [OUTPUT_PARALLEL_LANES-1:0][REDUCTION_PARALLEL_LANES-1:0],
+  input wire signed [WIDTH-1:0] one_cycle_operand_2 [OUTPUT_PARALLEL_LANES-1:0][REDUCTION_PARALLEL_LANES-1:0],
+  output reg signed [2*WIDTH-1:0] accumulate [OUTPUT_PARALLEL_LANES-1:0],
+  output reg [$clog2(FINAL_CYCLE)-1:0] cycles,
+  output wire complete
+);
+
+
+  logic signed [2*WIDTH-1:0] one_cycle_accumulate_out [OUTPUT_PARALLEL_LANES-1:0][REDUCTION_PARALLEL_LANES-1:0];
+  wire signed [2*WIDTH-1:0] one_cycle_adder_out [OUTPUT_PARALLEL_LANES-1:0];
+
+
+  always_comb begin
+    for (int output_lane = 0; output_lane < OUTPUT_PARALLEL_LANES; output_lane++) begin
+      for (int reduction = 0; reduction < REDUCTION_PARALLEL_LANES; reduction++) begin
+        one_cycle_accumulate_out[output_lane][reduction] = (one_cycle_operand_1[output_lane][reduction]
+                                                          * one_cycle_operand_2[output_lane][reduction]);
+      end
+    end
+  end
+    // one_cycle_accumuate_out[i][j] -> xiwi
+    // one_cycle_accumuate_out[i] -> [xiwi, xi+1*wi+1, xi+2*wi+2, xi+3*wi+3]
+                                //-> signed_adder_tree -> xnwn
+  for (genvar output_lane = 0; output_lane < OUTPUT_PARALLEL_LANES; output_lane++) begin : g_adder_tree
+    signed_adder_tree #(.WIDTH(2*WIDTH), .INPUT_COUNT(REDUCTION_PARALLEL_LANES))
+                      add (.in(one_cycle_accumulate_out[output_lane]), .out(one_cycle_adder_out[output_lane]));
+    // adder tree output would be 2*WIDTH + log2(REDUCTION_PARALLEL_LANES) bits wide
+  end
+
+  always_ff @(posedge clk) begin
+    if (rst) begin
+      cycles <= 0;
+      accumulate <= '{default: '0};
+    end
+    else begin
+      if (cycles < FINAL_CYCLE) begin
+        cycles <= cycles + 1;
+        for (int i = 0; i < OUTPUT_PARALLEL_LANES; i++)
+            accumulate[i] <= accumulate[i] + one_cycle_adder_out[i];
+      end
+    end
+  end
+
+  assign complete = (cycles >= FINAL_CYCLE) ? 1 : 0;
+endmodule
+
+/*
+data feeder ---inputs, weights, biases--> dense layer----|
+                                               |         |
+                                            biases   inputs,weights
+                                               |         |
+                                               |         |     Mac array
+                                               |         |---> output lane 0
+                                               |         |---> output lane 1
+                                               |         |---> output lane 2
+                                               |_________|---> output lane 3
+                                               |  accumulate complete
+                                               V
+                                            neuron -> intermediate value -> ReLU -> output
+*/
+
+module Neuron #(parameter int WIDTH = 8,
+                parameter int ACCUMULATOR_WIDTH = 8)
+(
+  input wire signed [WIDTH-1:0] bias, // should bias keep to the same size as everything else?
+  input wire signed [ACCUMULATOR_WIDTH-1:0] accumulate,
+  output wire signed [WIDTH-1:0] activate
+);
+    wire signed [ACCUMULATOR_WIDTH-1:0] intermediate_value;
+    assign intermediate_value = accumulate + bias;
+    ReLU #(.WIDTH(WIDTH)) activation_function (.x(intermediate_value), .y(activate));
+endmodule
+
+// The dense layer will instantiate the MACS.
+// typically id like a shared MAC array and a scheduling system for when several hidden layers
+// are involved, but for now a simpler design for a single hidden layer will do
+
+// 782 input x 128 neurons = 100352 MAC operations
+// If 20 MACs are instantiated, I think an optimal config is:
+  // 4 MACs that do work across inputs (eg MAC_1 does x0 * w0, MAC_2 does x1 * w1 etc...)
+    // less serial work for the actual linear expression, so shorter cycles per neuron
+  // That gives us max of 5 processing streams
+    // More neurons done in parallel
+  // A group would have 5 neurons and will need ceil(784/4) = 196 cycles to finish
+  // There are 26 groups, so in total 5096 cycles for the entire hidden layer
+
+// If we gave all 20 MACs one neuron at a time, that is 40 cycles to complete a neuron
+// But 128 neurons finished sequentually would take 128 * 40 = 5120 cycles
+
+module dense_layer #(parameter int WIDTH = 8,
+                   parameter int OUTPUT_PARALLEL_LANES = 4,
+                   parameter int REDUCTION_PARALLEL_LANES = 4,
+                   parameter int INPUT_COUNT = 784,
+                   parameter int NEURON_COUNT = 128)
+(
+  input wire clk,
+  input wire rst,
+  input wire signed [WIDTH-1:0] x_input [INPUT_COUNT-1:0],
+  input wire signed [WIDTH-1:0] weight [NEURON_COUNT-1:0][INPUT_COUNT-1:0],
+  input wire signed [WIDTH-1:0] bias [NEURON_COUNT-1:0],
+  output wire signed [WIDTH-1:0] activate [NEURON_COUNT-1:0],
+  output wire complete
+);
+  localparam int FINAL_CYCLE = (INPUT_COUNT + REDUCTION_PARALLEL_LANES - 1) / REDUCTION_PARALLEL_LANES;
+
+  // since this is fully connected, each neuron can share the same input
+  wire signed [WIDTH-1:0] one_cycle_x_input [OUTPUT_PARALLEL_LANES-1:0][REDUCTION_PARALLEL_LANES-1:0];
+  wire signed [WIDTH-1:0] one_cycle_weight [OUTPUT_PARALLEL_LANES-1:0][REDUCTION_PARALLEL_LANES-1:0];
+  wire signed [2*WIDTH-1:0] accumulate [OUTPUT_PARALLEL_LANES-1:0];
+  wire process_next;
+  logic [$clog2(FINAL_CYCLE)-1:0] cycles;
+
+  for (genvar i = 0; i < OUTPUT_PARALLEL_LANES; i++) begin : g_parallel_output_x_input
+    for (genvar j = 0; j < REDUCTION_PARALLEL_LANES; j++) begin : g_subset_x_input
+      assign one_cycle_x_input[i][j] = x_input[i][cycles * REDUCTION_PARALLEL_LANES * j];
+    end
+  end
+
+  for (genvar i = 0; i < OUTPUT_PARALLEL_LANES; i++) begin : g_parallel_output_weight
+    for (genvar j = 0; j < REDUCTION_PARALLEL_LANES; j++) begin : g_subset_weight
+      assign one_cycle_weight[i][j] = weight[i][cycles * REDUCTION_PARALLEL_LANES * j];
+    end
+  end
+
+  MAC_array #() mac_array (.clk(clk), .rst(rst), .complete(complete), .cycles(cycles),
+                           .one_cycle_operand_1(one_cycle_x_input),
+                           .one_cycle_operand_2(one_cycle_weight),
+                           .accumulate(accumulate));
+
+  always_ff @(posedge clk) begin
+    if (rst) begin
+      cycles <= 0;
+    end
+    else begin
+      if (complete) begin
+
+      end
+    end
+  end
+
+endmodule
+/*
+
+module backup_MAC_array #(parameter int WIDTH = 8,
+                   parameter int OUTPUT_PARALLEL_LANES = 4,
+                   parameter int REDUCTION_PARALLEL_LANES = 4,
+                   parameter int INPUT_COUNT = 784)
+(
+  input wire clk,
+  input wire rst,
+  input wire signed [WIDTH-1:0] x_input [OUTPUT_PARALLEL_LANES-1:0][INPUT_COUNT-1:0],
+  input wire signed [WIDTH-1:0] weight [OUTPUT_PARALLEL_LANES-1:0][INPUT_COUNT-1:0],
+  output reg signed [WIDTH-1:0] accumulate [OUTPUT_PARALLEL_LANES-1:0],
+  output reg complete
+);
+
+  localparam int FINAL_CYCLE = ceil(INPUT_COUNT / REDUCTION_PARALLEL_LANES);
+
+  wire signed [WIDTH-1:0] one_cycle_x_input [OUTPUT_PARALLEL_LANES-1:0][REDUCTION_PARALLEL_LANES-1:0];
+  wire signed [WIDTH-1:0] one_cycle_weight [OUTPUT_PARALLEL_LANES-1:0][REDUCTION_PARALLEL_LANES-1:0];
+  wire signed [WIDTH-1:0] one_cycle_accumulate_out [OUTPUT_PARALLEL_LANES-1:0][REDUCTION_PARALLEL_LANES-1:0];
+  wire signed [WIDTH-1:0] one_cycle_adder_out [OUTPUT_PARALLEL_LANES-1:0];
+
+  logic [$clog2(FINAL_CYCLE)-1:0] cycle;
+
+  // if reduction parallel = 4, each clock cycle can complete 4 xi*wi per neuron
+  for (genvar i = 0; i < OUTPUT_PARALLEL_LANES; i++) begin : g_parallel_output_x_input
+    for (genvar j = 0; j < REDUCTION_PARALLEL_LANES; j++) begin : g_subset_x_input
+      assign one_cycle_x_input[i][j] = x_input[i][cycle * REDUCTION_PARALLEL_LANES * j];
+    end
+  end
+
+  for (genvar i = 0; i < OUTPUT_PARALLEL_LANES; i++) begin : g_parallel_output_weight
+    for (genvar j = 0; j < REDUCTION_PARALLEL_LANES; j++) begin : g_subset_weight
+      assign one_cycle_weight[i][j] = weight[i][cycle * REDUCTION_PARALLEL_LANES * j];
+    end
+  end
+
+  for (genvar i = 0; i < OUTPUT_PARALLEL_LANES; i++) begin : g_parallel_output
+    for (genvar j = 0; j < REDUCTION_PARALLEL_LANES; j++) begin : g_parallel_reduction
+      MAC #(.WIDTH(WIDTH)) mac_unit ( .accumulate(accumulate[i]),
+                                      .x_input(one_cycle_x_input[i][j]),
+                                      .weight(one_cycle_weight[i][j]),
+                                      .accumulate_out(one_cycle_accumulate_out[i][j]));
+    end
+    // one_cycle_accumuate_out[i][j] -> xiwi
+    // one_cycle_accumuate_out[i] -> [xiwi, xi+1*wi+1, xi+2*wi+2, xi+3*wi+3]
+                                //-> signed_adder_tree -> xnwn
+    signed_adder_tree #(.WIDTH(WIDTH), .INPUT_COUNT(REDUCTION_PARALLEL_LANES))
+                      add (.in(one_cycle_accumulate_out[i]), .out(one_cycle_adder_out[i]));
+  end
+
+  always_ff @(posedge clk) begin
+    if (rst) begin
+      cycles <= 0;
+      accumulate <= '{default: '0};
+      complete <= 0;
+    end
+    else begin
+      if (cycle < FINAL_CYCLE) begin
+        cycle <= cycles + 1;
+        for (int i = 0; i < OUTPUT_PARALLEL_LANES; i++)
+            accumulate[i] = accumulate[i] + one_cycle_adder_out[i];
+      end
+      else begin
+        complete <= 1;
+      end
+    end
+  end
+
+endmodule
+*/
